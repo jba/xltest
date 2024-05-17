@@ -5,6 +5,8 @@
 package xltest
 
 import (
+	"fmt"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,6 +24,13 @@ func TestRun(t *testing.T) {
 				return s
 			}
 			return os.Getenv("XLTEST")
+		},
+		"rand3": func() int { return rand.IntN(3) },
+		"lessThan3": func(got, want any) string {
+			if got.(int) < 3 {
+				return ""
+			}
+			return fmt.Sprintf("got %v, want a number less than 3", got)
 		},
 	})
 }

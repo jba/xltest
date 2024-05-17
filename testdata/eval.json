@@ -1,0 +1,11 @@
+{
+  "name": "eval",
+  "description": "test an evaluation function",
+  "functions": {
+    "rand3": "returns a random number in [0, 3)"
+  },
+  "eval": "lessThan3",
+  "call": ["rand3"]
+}
+
+

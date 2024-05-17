@@ -29,8 +29,9 @@ type Test struct {
 	// Can be empty if this just holds subtests
 	Call Call `json:"call,omitempty"`
 	Want any  `json:"want,omitempty"`
-	// Name of function for comparison.
-	Compare  string  `json:"compare,omitempty"`
+	// Name of evaluation function.
+	// It must take (got, want) and return a string.
+	Eval     string  `json:"eval,omitempty"`
 	SubTests []*Test `json:"subtests,omitempty"`
 }
 
@@ -171,7 +172,13 @@ func toUserFunc(name string, x any) (userFunc, error) {
 func toReflectValues(xs []any) []reflect.Value {
 	vs := make([]reflect.Value, len(xs))
 	for i, x := range xs {
-		vs[i] = reflect.ValueOf(x)
+		v := reflect.ValueOf(x)
+		if !v.IsValid() {
+			// Can't pass a zero reflect.Value to Call.
+			// TODO(jba): do something more principled.
+			v = reflect.ValueOf((*int)(nil))
+		}
+		vs[i] = v
 	}
 	return vs
 }
@@ -185,22 +192,27 @@ func (tst *Test) Run(t *testing.T, funcMap map[string]any) {
 		}
 		funcs[name] = uf
 	}
-	tst.run(t, funcs, func(a, b any) bool { return cmp.Equal(a, b) })
+	tst.run(t, funcs, func(got, want any) string {
+		if cmp.Equal(got, want) {
+			return ""
+		}
+		return fmt.Sprintf("got %v, want %v", got, want)
+	})
 }
 
-func (tst *Test) run(t *testing.T, funcs map[string]userFunc, compare func(any, any) bool) {
-	if tst.Compare != "" {
-		uf, ok := funcs[tst.Compare]
+func (tst *Test) run(t *testing.T, funcs map[string]userFunc, eval func(any, any) string) {
+	if tst.Eval != "" {
+		uf, ok := funcs[tst.Eval]
 		if !ok {
-			t.Fatalf("missing comparison function %s", tst.Compare)
+			t.Fatalf("missing eval function %s", tst.Eval)
 		}
-		compare = func(a, b any) bool {
+		eval = func(a, b any) string {
 			t.Helper()
 			r, err := uf([]any{a, b})
 			if err != nil {
 				t.Fatal(err)
 			}
-			return r.(bool)
+			return r.(string)
 		}
 	}
 
@@ -222,12 +234,12 @@ func (tst *Test) run(t *testing.T, funcs map[string]userFunc, compare func(any, 
 			if err != nil {
 				t.Fatalf("during test calls: %v", err)
 			}
-			if !compare(got, tst.Want) {
-				t.Errorf("got %v, want %v", got, tst.Want)
+			if s := eval(got, tst.Want); s != "" {
+				t.Error(s)
 			}
 		}
 		for _, test := range tst.SubTests {
-			test.run(t, funcs, compare)
+			test.run(t, funcs, eval)
 		}
 	})
 }

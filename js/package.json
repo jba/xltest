@@ -1,0 +1,20 @@
+{
+  "name": "xltest",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "compile": "tsc src",
+    "test": "node --import tsx --test tests/*_test.ts"
+  },
+  "pre-commit": [
+    "format:check"
+  ],
+  "devDependencies": {
+    "prettier": "^3.2.5",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.7.1"
+  }
+}

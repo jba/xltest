@@ -1,0 +1,12 @@
+{
+  "name": "add",
+  "description": "a function which adds two numbers",
+  "functions": {
+    "add": "takes two floating-point numbers and returns their sum"
+  },
+  "subtests": [
+    {"call": ["add", 0, 0], "want": 0},
+    {"call": ["add", 1, 2], "want": 3},
+    {"call": ["add", -2, 1], "want": -1}
+  ]
+}

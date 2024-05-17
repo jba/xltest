@@ -1,0 +1,4 @@
+These files are tests for xltest itself.
+
+Every implementation should read and run these as part of its own tests.
+

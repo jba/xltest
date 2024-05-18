@@ -19,26 +19,14 @@ import (
 )
 
 type Test struct {
-	Name        string `json:"name,omitempty"`
-	Description string `json:"description,omitempty"`
-	// Functions describes how the test's functions should behave.
-	Functions map[string]string `json:"functions"`
-	Env       map[string]string `json:"env,omitempty"`
-	SetUp     []Call            `json:"setup,omitempty"`
-	TearDown  []Call            `json:"teardown,omitempty"`
+	Name        string            `yaml:"name,omitempty"`
+	Description string            `yaml:"description,omitempty"`
+	Env         map[string]string `yaml:"env,omitempty"`
 	// Can be empty if this just holds subtests
-	Call Call `json:"call,omitempty"`
-	Want any  `json:"want,omitempty"`
-	// Name of evaluation function.
-	// It must take (got, want) and return a string.
-	Eval     string  `json:"eval,omitempty"`
-	SubTests []*Test `json:"subtests,omitempty"`
+	Input    any     `yaml:"in,omitempty"`
+	Want     any     `yaml:"want,omitempty"`
+	SubTests []*Test `yaml:"subtests,omitempty"`
 }
-
-// A Call represents a function call as a slice.
-// Call[0] is a string that names the function.
-// The remaining elements are the arguments.
-type Call []any
 
 func ReadFile(filename string) (*Test, error) {
 	f, err := os.Open(filename)
@@ -47,7 +35,9 @@ func ReadFile(filename string) (*Test, error) {
 	}
 	defer f.Close()
 	var tst Test
-	if err := yaml.NewDecoder(f).Decode(&tst); err != nil {
+	dec := yaml.NewDecoder(f)
+	dec.KnownFields(true)
+	if err := dec.Decode(&tst); err != nil {
 		return nil, err
 	}
 
@@ -87,211 +77,128 @@ func (tst *Test) Init(name string) error {
 		tst.Name = name
 	}
 	var errs []error
-	tst.init("", map[string]string{}, func(msg string) {
+	tst.init("", func(msg string) {
 		errs = append(errs, errors.New(msg))
 	})
 	return errors.Join(errs...)
 }
 
-func (tst *Test) init(prefix string, functions map[string]string, addMsg func(string)) {
+func (tst *Test) init(prefix string, addMsg func(string)) {
 	prefix = path.Join(prefix, tst.Name)
-	addf := func(format string, args ...any) {
-		addMsg(prefix + ":" + fmt.Sprintf(format, args...))
-	}
-
-	for name, desc := range tst.Functions {
-		functions[name] = desc
-	}
-	foundEmpty := false
-	var calls []Call
-	calls = append(calls, tst.SetUp...)
-	calls = append(calls, tst.TearDown...)
-	if tst.Call != nil {
-		calls = append(calls, tst.Call)
-	} else if tst.Want != nil {
-		addf("call is empty but 'want' is not")
-	}
-	for _, call := range calls {
-		if len(call) == 0 && !foundEmpty {
-			addf("contains empty call")
-			foundEmpty = true
-			continue
-		}
-		funcName, ok := call[0].(string)
-		if !ok {
-			addf("call %v: first element must be a string", call)
-			continue
-		}
-		if _, ok := functions[funcName]; !ok {
-			addf("Test.Functions missing %q", funcName)
-		}
-	}
 	for i, st := range tst.SubTests {
 		if st.Name == "" {
 			st.Name = fmt.Sprint(i)
 		}
-		st.init(prefix, functions, addMsg)
+		st.init(prefix, addMsg)
 	}
 }
 
-type userFunc func([]any) (any, error)
+type testFuncType func(any) (any, error)
 
-func toUserFunc(name string, x any) (userFunc, error) {
-	if name == "" {
-		return nil, errors.New("empty function name")
+func makeTestFunc(f any) testFuncType {
+	fv := reflect.ValueOf(f)
+	ft := fv.Type()
+	if ft == nil {
+		return nil
 	}
-	fv := reflect.ValueOf(x)
-	tv := fv.Type()
-	if fv.Kind() != reflect.Func {
-		return nil, fmt.Errorf("%s: not a function", name)
+	if ft.Kind() != reflect.Func {
+		return nil
 	}
-	switch tv.NumOut() {
-	case 0:
-		return func(args []any) (any, error) {
-			fv.Call(toReflectValues(args))
-			return nil, nil
-		}, nil
+	if ft.NumIn() != 1 {
+		return nil
+	}
+	switch ft.NumOut() {
 	case 1:
-		return func(args []any) (any, error) {
-			rs := fv.Call(toReflectValues(args))
+		return func(x any) (any, error) {
+			rs := fv.Call([]reflect.Value{reflectValue(x)})
 			return rs[0].Interface(), nil
-		}, nil
+		}
 	case 2:
-		if tv.Out(1) != reflect.TypeFor[error]() {
-			return nil, fmt.Errorf("%s: second return value is not error", name)
+		if ft.Out(1) != reflect.TypeFor[error]() {
+			return nil
 		}
-		return func(args []any) (any, error) {
-			rs := fv.Call(toReflectValues(args))
+		return func(x any) (any, error) {
+			rs := fv.Call([]reflect.Value{reflectValue(x)})
 			return rs[0].Interface(), rs[1].Interface().(error)
-		}, nil
+		}
 	default:
-		return nil, fmt.Errorf("%s: more than two result values", name)
+		return nil
 	}
 }
 
-func toReflectValues(xs []any) []reflect.Value {
-	vs := make([]reflect.Value, len(xs))
-	for i, x := range xs {
-		v := reflect.ValueOf(x)
-		if !v.IsValid() {
-			// Can't pass a zero reflect.Value to Call.
-			// TODO(jba): do something more principled.
-			v = reflect.ValueOf((*int)(nil))
-		}
-		vs[i] = v
+type validateFuncType func(any, any) string
+
+func makeValidateFunc(f any) validateFuncType {
+	fv := reflect.ValueOf(f)
+	ft := fv.Type()
+	if ft == nil {
+		return nil
 	}
-	return vs
+	if ft.Kind() != reflect.Func {
+		return nil
+	}
+	if ft.NumIn() != 2 {
+		return nil
+	}
+	if ft.NumOut() != 1 {
+		return nil
+	}
+	if ft.Out(0) != reflect.TypeFor[string]() {
+		return nil
+	}
+	return func(x, y any) string {
+		rs := fv.Call([]reflect.Value{reflectValue(x), reflectValue(y)})
+		return rs[0].Interface().(string)
+	}
 }
 
-func (tst *Test) Run(t *testing.T, funcMap map[string]any) {
-	funcs := map[string]userFunc{}
-	for name, fn := range funcMap {
-		uf, err := toUserFunc(name, fn)
-		if err != nil {
-			t.Fatal(err)
-		}
-		funcs[name] = uf
+func (tst *Test) Run(t *testing.T, testFunction, validateFunction any) {
+	testFunc := makeTestFunc(testFunction)
+	if testFunc == nil {
+		t.Fatal("bad test function: want func(_) _ or func (_) (_, error)")
 	}
-	tst.run(t, funcs, func(got, want any) string {
-		if cmp.Equal(got, want) {
-			return ""
+	var validateFunc validateFuncType
+	if validateFunction != nil {
+		validateFunc = makeValidateFunc(validateFunction)
+		if validateFunc == nil {
+			t.Fatal("bad validate function: want func(_, _) string")
 		}
-		return fmt.Sprintf("got %v, want %v", got, want)
-	})
-}
-
-func (tst *Test) run(t *testing.T, funcs map[string]userFunc, eval func(any, any) string) {
-	if tst.Eval != "" {
-		uf, ok := funcs[tst.Eval]
-		if !ok {
-			t.Fatalf("missing eval function %s", tst.Eval)
-		}
-		eval = func(a, b any) string {
-			t.Helper()
-			r, err := uf([]any{a, b})
-			if err != nil {
-				t.Fatal(err)
+	} else {
+		validateFunc = func(got, want any) string {
+			if cmp.Equal(got, want) {
+				return ""
 			}
-			return r.(string)
+			return fmt.Sprintf("got %v, want %v", got, want)
 		}
 	}
+	tst.run(t, testFunc, validateFunc)
+}
 
+func (tst *Test) run(t *testing.T, testFunc testFuncType, validateFunc validateFuncType) {
 	t.Run(tst.Name, func(t *testing.T) {
 		for name, value := range tst.Env {
 			t.Setenv(name, value)
 		}
-		if _, err := invokeCalls(tst.SetUp, funcs); err != nil {
-			t.Fatalf("during setup: %v", err)
-		}
-		t.Cleanup(func() {
-			if _, err := invokeCalls(tst.TearDown, funcs); err != nil {
-				t.Fatalf("during teardown: %v", err)
-			}
-		})
-
-		if tst.Call != nil {
-			got, err := invoke(tst.Call, funcs)
+		if tst.Input != nil {
+			got, err := testFunc(tst.Input)
 			if err != nil {
-				t.Fatalf("during test calls: %v", err)
+				t.Fatalf("test function: %v", err)
 			}
-			if s := eval(got, tst.Want); s != "" {
+			if s := validateFunc(got, tst.Want); s != "" {
 				t.Error(s)
 			}
 		}
 		for _, test := range tst.SubTests {
-			test.run(t, funcs, eval)
+			test.run(t, testFunc, validateFunc)
 		}
 	})
 }
 
-func invokeCalls(cs []Call, funcs map[string]userFunc) (result any, err error) {
-	for _, c := range cs {
-		result, err = invoke(c, funcs)
-		if err != nil {
-			return nil, err
-		}
+func reflectValue(x any) reflect.Value {
+	if x == nil {
+		// The reflect value of nil is the zero reflect.Value, which can't be
+		// passed to reflect.Call. But this works.
+		return reflect.ValueOf(&x).Elem()
 	}
-	return result, nil
+	return reflect.ValueOf(x)
 }
-
-func invoke(c Call, funcs map[string]userFunc) (any, error) {
-	if len(c) == 0 {
-		panic("empty Call")
-	}
-	name := c[0].(string)
-	if name == "" {
-		panic("empty function name in Call")
-	}
-	f := funcs[name]
-	if f == nil {
-		panic(fmt.Sprintf("missing function named %s", name))
-	}
-	return f(c[1:])
-}
-
-// func ReadJSON(r io.Reader) (*Test, error) {
-// 	var t
-// 	for _, fname := range s.functionNames() {
-// 		if _, ok := s.Functions[fname]; !ok {
-// 			return nil, fmt.Errorf("suite.functions missing %q", fname)
-// 		}
-// 	}
-// 	return &s, nil
-// }
-
-// func (s *Suite) functionNames() []string {
-// 	var ns []string
-// 	if s.SetUp != nil {
-// 		ns = append(ns, s.SetUp.Func)
-// 	}
-// 	if s.TearDown != nil {
-// 		ns = append(ns, s.TearDown.Func)
-// 	}
-// 	if s.Compare != "" {
-// 		ns = append(ns, s.Compare)
-// 	}
-// 	for _, t := range s.Tests {
-// 		ns = append(ns, t.Call.Func)
-// 	}
-// 	return ns
-// }

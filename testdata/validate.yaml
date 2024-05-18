@@ -1,0 +1,6 @@
+# test function: no args, pick a random number in [0, 3)
+# validate function: number in range
+name: validate
+description: test an evaluation function
+in: 0  
+

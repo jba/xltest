@@ -5,7 +5,6 @@
 package xltest
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"gopkg.in/yaml.v3"
 )
 
 type Test struct {
@@ -47,7 +47,7 @@ func ReadFile(filename string) (*Test, error) {
 	}
 	defer f.Close()
 	var tst Test
-	if err := json.NewDecoder(f).Decode(&tst); err != nil {
+	if err := yaml.NewDecoder(f).Decode(&tst); err != nil {
 		return nil, err
 	}
 
@@ -60,7 +60,7 @@ func ReadFile(filename string) (*Test, error) {
 }
 
 func ReadDir(dir string) (*Test, error) {
-	filenames, err := filepath.Glob(filepath.Join(dir, "*.json"))
+	filenames, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
 	if err != nil {
 		return nil, err
 	}

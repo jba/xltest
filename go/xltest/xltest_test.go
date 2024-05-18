@@ -18,7 +18,7 @@ func TestRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	tst.Run(t, map[string]any{
-		"add": func(a, b float64) float64 { return a + b },
+		"add": func(a, b int) int { return a + b },
 		"lookup": func(s string) string {
 			if s != "" {
 				return s

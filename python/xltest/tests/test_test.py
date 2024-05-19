@@ -19,7 +19,10 @@ class TestXLTest(unittest.TestCase):
     def test_env(self):
         t = read_file(os.path.join(self.dir, 'env.yaml'))
         t.run(self, lookup)
-                
+
+    def test_validate(self):
+        t = read_file(os.path.join(self.dir, 'validate.yaml'))
+        t.run(self, lambda s: 'You say ' + s, self.assertRegex)
 
 def lookup(s: string) -> string:
     if s != '':

@@ -38,7 +38,10 @@ class Test:
         try:
             if self.input is not None:
                 got = testFunc(self.input)
-                tc.assertEqual(got, self.want)
+                if validateFunc:
+                    validateFunc(got, self.want)
+                else:
+                    tc.assertEqual(got, self.want)
             for st in self.subtests:
                 with tc.subTest(st.name):
                     st.run(tc, testFunc, validateFunc)
@@ -57,5 +60,6 @@ def read_file(filename: string) -> Test:
         t.init(os.path.basename(os.path.normpath(filename)).removesuffix('.yaml'))
         return t
     
-    
+#TODO
+# def read_dir(dir: string) -> Test:    
 

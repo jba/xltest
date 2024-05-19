@@ -6,7 +6,8 @@
   "scripts": {
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "compile": "tsc src",
+    "check": "tsc",
+    "compile": "tsup-node",
     "test": "node --import tsx --test tests/*_test.ts"
   },
   "pre-commit": [

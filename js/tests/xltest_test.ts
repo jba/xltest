@@ -11,17 +11,19 @@ import { readFile } from '../src/xltest.js';
 test('Test.run', async (t) => {
   const dir = path.join('..', 'testdata');
   const tests = {
-    add: {testFunc: (args) => args[0] + args[1]},
-    env: {testFunc: (s) => {
-            if (s) return s;
-            const e = process.env.XLTEST;
-            if (e === undefined) return '';
-            return e;
-          }},
+    add: { testFunc: (args) => args[0] + args[1] },
+    env: {
+      testFunc: (s) => {
+        if (s) return s;
+        const e = process.env.XLTEST;
+        if (e === undefined) return '';
+        return e;
+      },
+    },
     validate: {
       testFunc: (s) => 'You said ' + s,
-      validate: (got, re) => assert.match(got, new RegExp(re))
-    }
+      validate: (got, re) => assert.match(got, new RegExp(re)),
+    },
   };
   for (const name in tests) {
     let tst = readFile(path.join(dir, name + '.yaml'));

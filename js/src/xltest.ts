@@ -9,15 +9,15 @@ import { parse } from 'yaml';
 import { test, TestContext } from 'node:test';
 import assert from 'node:assert';
 
-type Env = {[index:string]: string};
+type Env = { [index: string]: string | undefined };
 
 export class Test {
-  name: string;
-  description: string;
-  env: Env;
+  name: string = '';
+  description: string = '';
+  env: Env = {};
   in: any;
   want: any;
-  subtests: Test[];
+  subtests: Test[] = [];
 
   static from(obj: any) {
     return Object.assign(new Test(), obj);
@@ -53,10 +53,8 @@ export class Test {
             assert.deepStrictEqual(got, this.want);
           }
         }
-        if (this.subtests) {
-          for (const st of this.subtests) {
-            await st.run(t, testFunc, validateFunc);
-          }
+        for (const st of this.subtests) {
+          await st.run(t, testFunc, validateFunc);
         }
       } finally {
         // Restore environment variables to their previous values.
@@ -65,7 +63,6 @@ export class Test {
     });
   }
 }
-
 
 function setEnv(dest: Env, src: Env) {
   for (const name in src) {

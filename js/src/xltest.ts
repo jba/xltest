@@ -1,23 +1,19 @@
 // Copyright 2024 Jonathan Amsterdam. All rights reserved.
-// Use of this source code is governed by a license that can be found in the LICENSE
-// file.
+// Use of this source code is governed by a license that
+// can be found in the LICENSE file.
 
 import fs from 'fs';
 import path from 'path';
+import * as process from 'process';
+import { parse } from 'yaml';
 import { test, TestContext } from 'node:test';
 import assert from 'node:assert';
-
-export type Call = any[];
-
-// TODO(jba): type is string to function
-type funcMap = { [index: string]: any };
 
 export class Test {
   name: string;
   description: string;
-  functions: { [index: string]: string };
   env: { [index: string]: string };
-  call: Call;
+  in: any;
   want: any;
   subtests: Test[];
 
@@ -29,7 +25,6 @@ export class Test {
     if (!this.name) {
       this.name = name;
     }
-    // TODO(jba): various checks, as in the Go equivalent.
     for (const i in this.subtests) {
       let st = Test.from(this.subtests[i]);
       this.subtests[i] = st;
@@ -37,31 +32,50 @@ export class Test {
     }
   }
 
-  async run(t: TestContext, funcs: funcMap) {
-    if (this.call) {
-      const got = invoke(this.call, funcs);
-      assert.equal(got, this.want);
-    }
-    if (this.subtests) {
-      await Promise.all(this.subtests.map((st) =>st.run(t, funcs)));
-    }
+  async run(t: TestContext, testFunc: any, validateFunc: any) {
+    await t.test(this.name, async (t) => {
+      let oldenv = {};
+      if (this.env) {
+        // Set environment variables, remembering their previous values.
+        for (const name in this.env) {
+          oldenv[name] = process.env[name];
+        }
+        copyEnv(process.env, this.env);
+      }
+      try {
+        if (this.in !== undefined) {
+          const got = testFunc(this.in);
+          assert.equal(got, this.want);
+        }
+        if (this.subtests) {
+          for (const st of this.subtests) {
+            await st.run(t, testFunc, validateFunc);
+          }
+        }
+      } finally {
+        // Restore environment variables to their previous values.
+        copyEnv(process.env, oldenv);
+      }
+    });
   }
 }
 
-function invoke(c: Call, funcs: funcMap): any {
-  if (!c) {
-    throw new Error('empty Call');
+type env = {[index:string]: string};
+
+function copyEnv(dest: env, src: env) {
+  for (const name in src) {
+    const val = src[name];
+    if (val === undefined) {
+      delete dest[name];
+    } else {
+      dest[name] = val;
+    }
   }
-  const f = funcs[c[0]];
-  if (!f) {
-    throw new Error(`missing function named "${c[0]}"`);
-  }
-  return f.apply(null, c.slice(1));
 }
 
 export function readFile(filePath: string): Test {
   const data = fs.readFileSync(filePath, 'utf8');
-  let tst = Test.from(JSON.parse(data));
+  let tst = Test.from(parse(data));
   const nname = path.normalize(filePath);
   const defaultName = path.basename(nname, path.extname(nname));
   tst.init(defaultName);
@@ -74,7 +88,7 @@ export function readDir(dir: string): Test {
   t.name = path.basename(path.normalize(dir));
   t.description = `files from ${dir}`;
   t.subtests = files
-    .filter((f) => f.endsWith('.json'))
+    .filter((f) => f.endsWith('.yaml'))
     .map((f) => readFile(path.join(dir, f)));
   return t;
 }

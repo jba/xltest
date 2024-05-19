@@ -3,14 +3,23 @@
 // file.
 
 import { test } from 'node:test';
-import assert from 'node:assert';
-import { readFile, readDir } from '../src/xltest.js';
+import path from 'path';
+import * as process from 'process';
+import { readFile } from '../src/xltest.js';
 
-test('read JSON', () => {
-  let tst = readFile('../testdata/add.json');
-});
-
-test('run', async (t) => {
-  let tst = readDir('../testdata');
-  await tst.run(t, { add: (x, y) => x + y });
+test('Test.run', async (t) => {
+  const dir = path.join('..', 'testdata');
+  const tests = {
+    add: {testFunc: (args) => args[0] + args[1]},
+    env: {testFunc: (s) => {
+            if (s) return s;
+            const e = process.env.XLTEST;
+            if (e === undefined) return '';
+            return e;
+          }},
+  };
+  for (const name in tests) {
+    let tst = readFile(path.join(dir, name + '.yaml'));
+    await tst.run(t, tests[name].testFunc, tests[name].validate);
+  }
 });

@@ -2,18 +2,17 @@
 # Use of this source code is governed by a license that
 # can be found in the LICENSE file.
 
+import os
 import unittest
 from xltest import read_file
 
 class TestXLTest(unittest.TestCase):
 
-    def test_sample(self):
-        self.assertEqual(1, 1)
-
+    dir = os.path.join('..', '..', 'testdata')
+    
     def test_add(self):
         #TODO(jba): OS-independent file paths
-        tst = read_file('../../testdata/add.yaml')
-        
+        tst = read_file(os.path.join(self.dir, 'add.yaml'))
+        tst.run(self, lambda args: args[0] + args[1])
 
-        
         

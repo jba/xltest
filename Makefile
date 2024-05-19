@@ -5,6 +5,7 @@
 test:
 	cd go/xltest && go test
 	cd js && npm test
+	cd python/xltest && python3 -m unittest tests/test_test.py
 
 format:
 	cd go/xltest && gofmt -w *.go

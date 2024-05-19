@@ -3,8 +3,9 @@
 // file.
 
 import { test } from 'node:test';
+import assert from 'node:assert';
 import path from 'path';
-import * as process from 'process';
+import process from 'process';
 import { readFile } from '../src/xltest.js';
 
 test('Test.run', async (t) => {
@@ -17,6 +18,10 @@ test('Test.run', async (t) => {
             if (e === undefined) return '';
             return e;
           }},
+    validate: {
+      testFunc: (s) => 'You said ' + s,
+      validate: (got, re) => assert.match(got, new RegExp(re))
+    }
   };
   for (const name in tests) {
     let tst = readFile(path.join(dir, name + '.yaml'));

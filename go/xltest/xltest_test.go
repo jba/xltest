@@ -6,9 +6,9 @@ package xltest
 
 import (
 	"fmt"
-	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 )
 
@@ -37,12 +37,16 @@ func TestRun(t *testing.T) {
 		},
 		{
 			"validate",
-			func(int) int { return rand.IntN(3) },
-			func(got int, _ any) string {
-				if got < 3 {
-					return ""
+			func(s string) string { return "LLM says: " + s },
+			func(got, wantRegexp string) error {
+				matched, err := regexp.MatchString(wantRegexp, got)
+				if err != nil {
+					return err
 				}
-				return fmt.Sprintf("got %v, want a number less than 3", got)
+				if !matched {
+					return fmt.Errorf("got %q, wanted match for %q", got, wantRegexp)
+				}
+				return nil
 			},
 		},
 	} {

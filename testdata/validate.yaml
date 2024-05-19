@@ -1,6 +1,8 @@
-# test function: no args, pick a random number in [0, 3)
-# validate function: number in range
-name: validate
-description: test an evaluation function
-in: 0  
+# test function: simulate LLM output using input as prompt.
+# The function should return a string that contains the prompt.
+# validate function: partial regexp match.
 
+name: validate
+description: tests a validate function 
+in: Describe a cat.
+want: cat

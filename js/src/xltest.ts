@@ -9,10 +9,12 @@ import { parse } from 'yaml';
 import { test, TestContext } from 'node:test';
 import assert from 'node:assert';
 
+type Env = {[index:string]: string};
+
 export class Test {
   name: string;
   description: string;
-  env: { [index: string]: string };
+  env: Env;
   in: any;
   want: any;
   subtests: Test[];
@@ -40,12 +42,16 @@ export class Test {
         for (const name in this.env) {
           oldenv[name] = process.env[name];
         }
-        copyEnv(process.env, this.env);
+        setEnv(process.env, this.env);
       }
       try {
         if (this.in !== undefined) {
           const got = testFunc(this.in);
-          assert.equal(got, this.want);
+          if (validateFunc) {
+            validateFunc(got, this.want);
+          } else {
+            assert.deepStrictEqual(got, this.want);
+          }
         }
         if (this.subtests) {
           for (const st of this.subtests) {
@@ -54,15 +60,14 @@ export class Test {
         }
       } finally {
         // Restore environment variables to their previous values.
-        copyEnv(process.env, oldenv);
+        setEnv(process.env, oldenv);
       }
     });
   }
 }
 
-type env = {[index:string]: string};
 
-function copyEnv(dest: env, src: env) {
+function setEnv(dest: Env, src: Env) {
   for (const name in src) {
     const val = src[name];
     if (val === undefined) {

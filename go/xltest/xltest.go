@@ -149,7 +149,11 @@ func makeValidateFunc(f any) validateFuncType {
 	}
 	return func(x, y any) error {
 		rs := fv.Call([]reflect.Value{reflectValue(x), reflectValue(y)})
-		return rs[0].Interface().(error)
+		r := rs[0].Interface()
+		if r == nil {
+			return nil
+		}
+		return r.(error)
 	}
 }
 

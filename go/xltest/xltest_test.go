@@ -12,8 +12,9 @@ import (
 	"testing"
 )
 
+var testdataDir = filepath.FromSlash("../../testdata")
+
 func TestRun(t *testing.T) {
-	dir := filepath.Join("..", "..", "testdata")
 
 	for _, test := range []struct {
 		file         string
@@ -50,10 +51,34 @@ func TestRun(t *testing.T) {
 			},
 		},
 	} {
-		tst, err := ReadFile(filepath.Join(dir, test.file+".yaml"))
+		tst, err := ReadFile(filepath.Join(testdataDir, test.file+".yaml"))
 		if err != nil {
 			t.Fatal(err)
 		}
 		tst.Run(t, test.testFunc, test.validateFunc)
 	}
+}
+
+func TestReadDir(t *testing.T) {
+	got, err := ReadDir(testdataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// We can't actually run these because they require different test functions.
+
+	checkName := func(tst *Test, wantName string) {
+		t.Helper()
+		if g, w := tst.Name, wantName; g != w {
+			t.Errorf("got %q, want %q", g, w)
+		}
+	}
+
+	checkName(got, "testdata")
+	if g, w := len(got.SubTests), 3; g != w {
+		t.Fatalf("got %d subtests, want %d", g, w)
+	}
+	checkName(got.SubTests[0], "add")
+	checkName(got.SubTests[1], "env")
+	checkName(got.SubTests[2], "validate")
 }

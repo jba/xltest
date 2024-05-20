@@ -18,6 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// A Test validates the result of a function on some input.
 type Test struct {
 	Name        string            `yaml:"name,omitempty"`
 	Description string            `yaml:"description,omitempty"`
@@ -28,6 +29,10 @@ type Test struct {
 	SubTests []*Test `yaml:"subtests,omitempty"`
 }
 
+// Init initializes a test by assigning it an all subtests a name
+// if they don't have one. It is only necessary for tests that
+// have been constructed in memory; [ReadFile] and [ReadDir] call
+// it themselves.
 func (tst *Test) Init(name string) error {
 	if tst.Name == "" {
 		if name == "" {
@@ -44,6 +49,9 @@ func (tst *Test) Init(name string) error {
 
 func (tst *Test) init(prefix string, addMsg func(string)) {
 	prefix = path.Join(prefix, tst.Name)
+	if tst.Want != nil && tst.Input == nil {
+		addMsg(fmt.Sprintf("%s: test has a 'want' but no 'in'", prefix))
+	}
 	for i, st := range tst.SubTests {
 		if st.Name == "" {
 			st.Name = fmt.Sprint(i)
@@ -52,26 +60,40 @@ func (tst *Test) init(prefix string, addMsg func(string)) {
 	}
 }
 
-func (tst *Test) Run(t *testing.T, testFunction, validateFunction any) {
-	testFunc := makeTestFunc(testFunction)
-	if testFunc == nil {
+// Run runs the test with the given functions.
+//
+// testFunc is the function under test. It should take one argument whose type
+// matches the type of the inputs declared in the test. Its first return value
+// is validated against the "want" field of each test by the validate function.
+// testFunc may have a second return value of type error. If testFunc
+// returns a non-nil error, the test fails immediately.
+//
+// validateFunc validates the result of testFunc. If non-nil, it must take
+// two arguments: the first is the value returned by testFunc, and the second is
+// the value of the test's "want" field. It should have a single return value of
+// type [error]. A non-nil error indicates failure.
+// If validateFunc is nil, the actual and expected values will be compared for (deep)
+// equality using [github.com/google/go-cmp/cmp.Equal].
+func (tst *Test) Run(t *testing.T, testFunc, validateFunc any) {
+	tfunc := makeTestFunc(testFunc)
+	if tfunc == nil {
 		t.Fatal("bad test function: want func(_) _ or func (_) (_, error)")
 	}
-	var validateFunc validateFuncType
-	if validateFunction != nil {
-		validateFunc = makeValidateFunc(validateFunction)
-		if validateFunc == nil {
+	var vfunc validateFuncType
+	if validateFunc != nil {
+		vfunc = makeValidateFunc(validateFunc)
+		if vfunc == nil {
 			t.Fatal("bad validate function: want func(_, _) error")
 		}
 	} else {
-		validateFunc = func(got, want any) error {
+		vfunc = func(got, want any) error {
 			if cmp.Equal(got, want) {
 				return nil
 			}
 			return fmt.Errorf("got %v, want %v", got, want)
 		}
 	}
-	tst.run(t, testFunc, validateFunc)
+	tst.run(t, tfunc, vfunc)
 }
 
 func (tst *Test) run(t *testing.T, testFunc testFuncType, validateFunc validateFuncType) {
@@ -157,6 +179,9 @@ func makeValidateFunc(f any) validateFuncType {
 	}
 }
 
+// ReadFile reads a Test from a YAML file.
+// If the test doesn't have a name, it is named after the
+// last component of the filename, excluding the extension.
 func ReadFile(filename string) (*Test, error) {
 	f, err := os.Open(filename)
 	if err != nil {
@@ -178,6 +203,9 @@ func ReadFile(filename string) (*Test, error) {
 	return &tst, nil
 }
 
+// ReadDir calls ReadFile on all the .yaml files in dir.
+// The resulting Tests become sub-tests of the returned Test,
+// whose name is the last component of dir.
 func ReadDir(dir string) (*Test, error) {
 	filenames, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
 	if err != nil {

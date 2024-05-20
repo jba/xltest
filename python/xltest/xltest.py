@@ -26,6 +26,8 @@ class Test:
             self.name = name
         if self.input is None and self.want is not None:
             raise ValueError(f"test {self.name} has 'want' but not 'in'")
+        if self.input is None and len(self.subtests) == 0:
+            raise ValueError(f"test {self.name} has no input and no subtests")
         for i, st in enumerate(self.subtests):
             n = f"{i}"
             if prepend:

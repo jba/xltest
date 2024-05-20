@@ -27,6 +27,8 @@ export class Test {
     if (!this.name) {
       this.name = name;
     }
+    if (this.in === undefined && this.want !== undefined)
+      throw new Error(`test {this.name} has 'want' but not 'in'`)
     for (const i in this.subtests) {
       let st = Test.from(this.subtests[i]);
       this.subtests[i] = st;

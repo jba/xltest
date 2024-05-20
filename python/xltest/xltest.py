@@ -24,6 +24,8 @@ class Test:
     def init(self, name: string, prepend: bool = False):
         if not self.name:
             self.name = name
+        if self.input is None and self.want is not None:
+            raise ValueError(f"test {self.name} has 'want' but not 'in'")
         for i, st in enumerate(self.subtests):
             n = f"{i}"
             if prepend:

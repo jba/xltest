@@ -50,7 +50,7 @@ func (tst *Test) Init(name string) error {
 func (tst *Test) init(prefix string, addMsg func(string)) {
 	prefix = path.Join(prefix, tst.Name)
 	if tst.Want != nil && tst.Input == nil {
-		addMsg(fmt.Sprintf("%s: test has a 'want' but no 'in'", prefix))
+		addMsg(fmt.Sprintf("%s: test has 'want' but not 'in'", prefix))
 	}
 	for i, st := range tst.SubTests {
 		if st.Name == "" {

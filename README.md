@@ -45,7 +45,9 @@ The Go code to run this test looks like this:
 ```go
 func TestAdd(t *testing.T) {
     tst, err := xltest.ReadFile("add.yaml")
-    if err {...}
+    if err != nil {
+        t.Fatal(err)
+    }
     add := func(args []any) int { return args[0].(int) + args[1].(int) }
     tst.Run(t, add, nil)
 }
@@ -75,5 +77,12 @@ At present, this repo has implementations for Go, Javascript and Python.
 The latter two are more proofs of concept than production-ready code, because
 I'm not fluent in those languages.
 
+## Contributions
+
+Contributions are welcome, especially implementations for new languages
+and improvements to existing ones.
+
+There are deliberately very few features and I want to keep it that way.
+Every new feature has to be implemented in every language.
 
 

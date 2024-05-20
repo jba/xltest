@@ -1,0 +1,22 @@
+'$schema': 'https://json-schema.org/draft/2020-12/schema'
+title: Test
+type: object
+properties:
+  name:
+    type: string
+  description:
+    description: A longer description of the test.
+    type: string
+  in:
+    description: |
+      The input to the function under test.
+      If omitted, the test is solely a container for subtests.
+    # Any type is permitted.
+  want:
+    description: |
+      The expected output of the test function on the input.
+      It is an error to omit 'in' but provide 'want'.
+      It is not an error to provide 'in' but omit 'want', because
+      the validation function may check whether the the function result
+      has some property, rather than comparing it with a desired value.
+    # Any type is permitted.

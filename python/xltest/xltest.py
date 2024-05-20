@@ -60,6 +60,10 @@ def read_file(filename: string) -> Test:
         t.init(os.path.basename(os.path.normpath(filename)).removesuffix('.yaml'))
         return t
     
-#TODO
-# def read_dir(dir: string) -> Test:    
-
+def read_dir(dir: string) -> Test:    
+    test = Test()
+    for filename in os.listdir(dir):
+        if filename.endswith('.yaml'):
+            test.subtests.push(read_file(os.path.join(dir, filename)))
+    test.init(os.path.basename(os.path.normalize(dir)))
+    return test

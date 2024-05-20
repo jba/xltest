@@ -87,10 +87,10 @@ export function readFile(filePath: string): Test {
 export function readDir(dir: string): Test {
   const files = fs.readdirSync(dir);
   let t = new Test();
-  t.name = path.basename(path.normalize(dir));
   t.description = `files from ${dir}`;
   t.subtests = files
     .filter((f) => f.endsWith('.yaml'))
     .map((f) => readFile(path.join(dir, f)));
+  t.init(path.basename(path.normalize(dir)))
   return t;
 }

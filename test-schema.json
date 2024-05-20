@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Test",
+  "description": "One or more test cases describing the expected result of calling a function on an input.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "description": "name of the test, used in test runner output",
+      "type": "string"
+    },
+    "description": {
+      "description": "description of the test",
+      "type": "string"
+    },
+    "env": {
+      "description": "environment variables to be set during the test",
+      
+    }
+

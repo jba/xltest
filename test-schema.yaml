@@ -1,0 +1,59 @@
+# This is the JSON Schema for the Test type,
+# written as YAML.
+
+'$schema': 'https://json-schema.org/draft/2020-12/schema'
+title: Test
+description: |
+    A Test describes one or more test cases.
+    Each test case describes the expected result of calling a function on an input.
+    The function itself, and how the result is validated, are not part of a Test;
+    they are both described in natural language, either in the test description or in
+    a comment in the test file.
+type: object
+properties:
+  name:
+    description: A short name for the test, used in test runner output.
+    type: string
+
+  description:
+    description: A longer description of the test.
+    type: string
+
+  env:
+    description: |
+      A mapping from environment variable names to the values they should have during the test.
+      Once the test is finished, the environment variables are restored to their previous values.
+    type: object
+    additionalProperties:
+      type: string
+
+  in:
+    description: |
+      The input to the function under test.
+      If omitted, the test is solely a container for subtests.
+    # Any type is permitted.
+
+  want:
+    description: |
+      The expected output of the test function on the input.
+      It is an error to omit 'in' but provide 'want'.
+      It is not an error to provide 'in' but omit 'want', because
+      the validation function may check whether the the function result
+      has some property, rather than comparing it with a desired value.
+    # Any type is permitted.
+    
+  subtests:
+    description: |
+      Zero or more tests that are run, sequentially and in the order given,
+      after the parent test (if any) is run.
+    type: array
+    items:
+      '$ref': '#' 
+
+additionalProperties: false
+
+    
+      
+
+
+

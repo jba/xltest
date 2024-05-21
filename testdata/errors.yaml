@@ -1,0 +1,22 @@
+# Illustration of onError.
+# The test function should take a string
+# and parse it as an integer.
+# The validation function should accept an error as well as an integer.
+
+name: errors
+description: the onError field
+subtests:
+  - in: '17'
+    want: 17
+
+  - onError: succeed
+    # onError is inherited by subtests
+    subtests:
+      - in: ''
+      - in: 'x'
+
+  - onError: validate
+    in: 'xyz'
+ 
+  
+ 

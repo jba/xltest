@@ -22,6 +22,10 @@ other tests.
 A test can specify the values of environment variables. The variables
 are set for the duration of the test and restored when it finishes.
 
+If the test function signals an error, the test fails by default.
+The test can set its `onError` field so that it either succeeds,
+in that case, or calls the validation function with the error.
+
 ## Example: adding two numbers
 
 Here is the file [`testdata/add.yaml`](testdata/add.yaml):

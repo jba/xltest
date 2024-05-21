@@ -42,6 +42,14 @@ properties:
       has some property, rather than comparing it with a desired value.
     # Any type is permitted.
     
+  onError:
+    description: |
+      What to do if the test function signals an error.
+    enum:
+      - fail      # The test fails. This is the default.      
+      - succeed   # The test succeeds, and fails if there is not an error.
+      - validate  # The error is passed to the validation function.
+
   subtests:
     description: |
       Zero or more tests that are run, sequentially and in the order given,

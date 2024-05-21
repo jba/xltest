@@ -14,6 +14,8 @@ class Test:
     env: dict[string, string] = {}
     input: Any = None
     want: Any = None
+    # TODO: an enum type for onError
+    onError: string = ''
     subtests: list[Test] = []
 
     def __init__(self, **entries): 
@@ -35,21 +37,44 @@ class Test:
             st.init(n, True)
 
     def run(self, tc: unittest.TestCase, testFunc: Any, validateFunc: Any = None):
+        if not validateFunc:
+            validateFunc = tc.assertEqual
+        self._run(tc, testFunc, validateFunc, 'fail')
+
+    def _run(self, tc: unittest.TestCase, testFunc: Any, validateFunc: Any, onError: string):
+        # Override onError if set in the test.
+        if self.onError != '':
+            onError = self.onError
+        # Set environment variables, remembering their values.
         oldenv = {}
         for name, val in self.env.items():
             oldenv[name] = os.environ.get(name)
             os.environ[name] = val
         try:
             if self.input is not None:
-                got = testFunc(self.input)
-                if validateFunc:
-                    validateFunc(got, self.want)
-                else:
-                    tc.assertEqual(got, self.want)
+                match onError:
+                    case 'fail':
+                        got = testFunc(self.input)
+                        validateFunc(got, self.want)
+
+                    case 'succeed':
+                        tc.assertRaises(Exception, testFunc, self.input)
+
+                    case 'validate':
+                        try:
+                            got = testFunc(self.input)
+                            validateFunc(got, self.want)
+                        except Exception as e:
+                            validateFunc(e, self.want)
+
+                    case _:
+                        tc.fail(f"unknown onError value: {onError}")
+
             for st in self.subtests:
                 with tc.subTest(st.name):
-                    st.run(tc, testFunc, validateFunc)
+                    st._run(tc, testFunc, validateFunc, onError)
         finally:
+            # Restore environment variables.
             for name, val in oldenv.items():
                 if val is None:
                     del os.environ[name]

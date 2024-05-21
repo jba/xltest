@@ -25,6 +25,17 @@ test('Test.run', async (t) => {
       testFunc: (s) => 'You said ' + s,
       validate: (got, re) => assert.match(got, new RegExp(re)),
     },
+    errors: {
+      testFunc: (s) => {
+        const i = parseInt(s);
+        if (isNaN(i)) throw new Error(`"${s}" is not a valid integer`);
+        return i;
+      },
+      validate: (got, want) => {
+        if (typeof got === 'number') assert.equal(got, want);
+        else assert(got instanceof Error);
+      },
+    },
   };
   for (const name in tests) {
     const tst = readFile(path.join(testdataDir, name + '.yaml'));
@@ -34,6 +45,9 @@ test('Test.run', async (t) => {
 
 test('readDir', async (t) => {
   const tst = readDir(testdataDir);
-  assert.equal(tst.name, "testdata");
-  assert.deepStrictEqual(tst.subtests.map((s) => s.name), ['add', 'env', 'validate']);
-})
+  assert.equal(tst.name, 'testdata');
+  assert.deepStrictEqual(
+    tst.subtests.map((s) => s.name),
+    ['add', 'env', 'errors', 'validate']
+  );
+});

@@ -5,10 +5,12 @@
 package xltest
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"testing"
 )
 
@@ -50,6 +52,24 @@ func TestRun(t *testing.T) {
 				return nil
 			},
 		},
+		{
+			"errors",
+			strconv.Atoi,
+			func(got, want any) error {
+				ok := false
+				switch got := got.(type) {
+				case int:
+					ok = got == want
+				case error:
+					var nerr *strconv.NumError
+					ok = errors.As(got, &nerr)
+				}
+				if !ok {
+					return fmt.Errorf("got %v, want %v", got, want)
+				}
+				return nil
+			},
+		},
 	} {
 		tst, err := ReadFile(filepath.Join(testdataDir, test.file+".yaml"))
 		if err != nil {
@@ -75,10 +95,11 @@ func TestReadDir(t *testing.T) {
 	}
 
 	checkName(got, "testdata")
-	if g, w := len(got.SubTests), 3; g != w {
+	if g, w := len(got.SubTests), 4; g != w {
 		t.Fatalf("got %d subtests, want %d", g, w)
 	}
 	checkName(got.SubTests[0], "add")
 	checkName(got.SubTests[1], "env")
-	checkName(got.SubTests[2], "validate")
+	checkName(got.SubTests[2], "errors")
+	checkName(got.SubTests[3], "validate")
 }

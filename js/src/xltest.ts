@@ -11,12 +11,19 @@ import assert from 'node:assert';
 
 type Env = { [index: string]: string | undefined };
 
+enum OnError {
+  fail = 'fail',
+  succeed = 'succeed',
+  validate = 'validate',
+}
+
 export class Test {
   name: string = '';
   description: string = '';
   env: Env = {};
   in: any;
   want: any;
+  onError: OnError | undefined;
   subtests: Test[] = [];
 
   static from(obj: any) {
@@ -28,9 +35,9 @@ export class Test {
       this.name = name;
     }
     if (this.in === undefined && this.want !== undefined)
-      throw new Error(`test {this.name} has 'want' but not 'in'`)
+      throw new Error(`test ${this.name} has 'want' but not 'in'`);
     if (this.in === undefined && this.subtests.length == 0)
-      throw new Error(` test {this.name} has no 'in' and no subtests`)
+      throw new Error(`test ${this.name} has no 'in' and no subtests`);
     for (const i in this.subtests) {
       let st = Test.from(this.subtests[i]);
       this.subtests[i] = st;
@@ -39,6 +46,17 @@ export class Test {
   }
 
   async run(t: TestContext, testFunc: any, validateFunc: any) {
+    if (!validateFunc) validateFunc = assert.deepStrictEqual;
+    return this._run(t, testFunc, validateFunc, OnError.fail);
+  }
+
+  async _run(
+    t: TestContext,
+    testFunc: any,
+    validateFunc: any,
+    onError: OnError
+  ) {
+    if (this.onError !== undefined) onError = this.onError;
     await t.test(this.name, async (t) => {
       let oldenv = {};
       if (this.env) {
@@ -50,15 +68,31 @@ export class Test {
       }
       try {
         if (this.in !== undefined) {
-          const got = testFunc(this.in);
-          if (validateFunc) {
-            validateFunc(got, this.want);
-          } else {
-            assert.deepStrictEqual(got, this.want);
+          let got: any;
+          switch (onError) {
+            case OnError.fail:
+              assert.doesNotThrow(() => {
+                got = testFunc(this.in);
+              });
+              validateFunc(got, this.want);
+              break;
+
+            case OnError.succeed:
+              assert.throws(() => testFunc(this.in));
+              break;
+
+            case OnError.validate:
+              try {
+                got = testFunc(this.in);
+              } catch (e) {
+                got = e;
+              }
+              validateFunc(got, this.want);
+              break;
           }
         }
         for (const st of this.subtests) {
-          await st.run(t, testFunc, validateFunc);
+          await st._run(t, testFunc, validateFunc, onError);
         }
       } finally {
         // Restore environment variables to their previous values.
@@ -95,6 +129,6 @@ export function readDir(dir: string): Test {
   t.subtests = files
     .filter((f) => f.endsWith('.yaml'))
     .map((f) => readFile(path.join(dir, f)));
-  t.init(path.basename(path.normalize(dir)))
+  t.init(path.basename(path.normalize(dir)));
   return t;
 }

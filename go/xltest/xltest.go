@@ -19,14 +19,17 @@ import (
 )
 
 // A Test validates the result of a function on some input.
+// See the [JSON schema] for documentation.
+//
+// [JSON schema]: https://github.com/jba/xltest/blob/main/test-schema.yaml
 type Test struct {
 	Name        string            `yaml:"name,omitempty"`
 	Description string            `yaml:"description,omitempty"`
 	Env         map[string]string `yaml:"env,omitempty"`
-	// Can be empty if this just holds subtests
-	Input    any     `yaml:"in,omitempty"`
-	Want     any     `yaml:"want,omitempty"`
-	SubTests []*Test `yaml:"subtests,omitempty"`
+	Input       any               `yaml:"in,omitempty"`
+	Want        any               `yaml:"want,omitempty"`
+	OnError     string            `yaml:"onError,omitempty"`
+	SubTests    []*Test           `yaml:"subtests,omitempty"`
 }
 
 // Init initializes a test by assigning it an all subtests a name
@@ -64,6 +67,12 @@ func (tst *Test) init(prefix string, addMsg func(string)) {
 	}
 }
 
+const ( // onError values
+	fail     = "fail"
+	succeed  = "succeed"
+	validate = "validate"
+)
+
 // Run runs the test with the given functions.
 //
 // testFunc is the function under test. It should take one argument whose type
@@ -97,25 +106,44 @@ func (tst *Test) Run(t *testing.T, testFunc, validateFunc any) {
 			return fmt.Errorf("got %v, want %v", got, want)
 		}
 	}
-	tst.run(t, tfunc, vfunc)
+	tst.run(t, tfunc, vfunc, "fail")
 }
 
-func (tst *Test) run(t *testing.T, testFunc testFuncType, validateFunc validateFuncType) {
+func (tst *Test) run(t *testing.T, testFunc testFuncType, validateFunc validateFuncType, onError string) {
 	t.Run(tst.Name, func(t *testing.T) {
 		for name, value := range tst.Env {
 			t.Setenv(name, value)
 		}
+		if tst.OnError != "" {
+			onError = tst.OnError
+		}
 		if tst.Input != nil {
 			got, err := testFunc(tst.Input)
-			if err != nil {
-				t.Fatalf("test function: %v", err)
-			}
-			if err := validateFunc(got, tst.Want); err != nil {
-				t.Error(err)
+			switch onError {
+			case fail:
+				if err != nil {
+					t.Errorf("test function: %v", err)
+				}
+				if err := validateFunc(got, tst.Want); err != nil {
+					t.Error(err)
+				}
+			case succeed:
+				if err == nil {
+					t.Error("test function returned nil, wanted error")
+				}
+			case validate:
+				if err != nil {
+					got = err
+				}
+				if err := validateFunc(got, tst.Want); err != nil {
+					t.Error(err)
+				}
+			default:
+				panic("bad onError value")
 			}
 		}
 		for _, test := range tst.SubTests {
-			test.run(t, testFunc, validateFunc)
+			test.run(t, testFunc, validateFunc, onError)
 		}
 	})
 }
@@ -146,11 +174,19 @@ func makeTestFunc(f any) testFuncType {
 		}
 		return func(x any) (any, error) {
 			rs := fv.Call([]reflect.Value{reflectValue(x)})
-			return rs[0].Interface(), rs[1].Interface().(error)
+			return rs[0].Interface(), asError(rs[1])
 		}
 	default:
 		return nil
 	}
+}
+
+func asError(v reflect.Value) error {
+	x := v.Interface()
+	if x == nil {
+		return nil
+	}
+	return x.(error)
 }
 
 type validateFuncType func(any, any) error
@@ -175,11 +211,7 @@ func makeValidateFunc(f any) validateFuncType {
 	}
 	return func(x, y any) error {
 		rs := fv.Call([]reflect.Value{reflectValue(x), reflectValue(y)})
-		r := rs[0].Interface()
-		if r == nil {
-			return nil
-		}
-		return r.(error)
+		return asError(rs[0])
 	}
 }
 
@@ -196,7 +228,7 @@ func ReadFile(filename string) (*Test, error) {
 	dec := yaml.NewDecoder(f)
 	dec.KnownFields(true)
 	if err := dec.Decode(&tst); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", filename, err)
 	}
 
 	cname := filepath.Clean(filename)

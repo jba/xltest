@@ -17,89 +17,74 @@ import (
 var testdataDir = filepath.FromSlash("../../testdata")
 
 func TestRun(t *testing.T) {
+	tst := mustReadFile[[2]int, int](t, "add")
+	tst.Run(t, func(input [2]int) (int, error) { return input[0] + input[1], nil }, nil, nil)
 
-	for _, test := range []struct {
-		file         string
-		testFunc     any
-		validateFunc any
-	}{
-		{
-			"add",
-			func(input []any) int { return input[0].(int) + input[1].(int) },
-			nil,
-		},
-		{
-			"env",
-			func(s string) string {
-				if s != "" {
-					return s
-				}
-				return os.Getenv("XLTEST")
-			},
-			nil,
-		},
-		{
-			"validate",
-			func(s string) string { return "LLM says: " + s },
-			func(got, wantRegexp string) error {
-				matched, err := regexp.MatchString(wantRegexp, got)
-				if err != nil {
-					return err
-				}
-				if !matched {
-					return fmt.Errorf("got %q, wanted match for %q", got, wantRegexp)
-				}
-				return nil
-			},
-		},
-		{
-			"errors",
-			strconv.Atoi,
-			func(got, want any) error {
-				ok := false
-				switch got := got.(type) {
-				case int:
-					ok = got == want
-				case error:
-					var nerr *strconv.NumError
-					ok = errors.As(got, &nerr)
-				}
-				if !ok {
-					return fmt.Errorf("got %v, want %v", got, want)
-				}
-				return nil
-			},
-		},
-	} {
-		tst, err := ReadFile(filepath.Join(testdataDir, test.file+".yaml"))
-		if err != nil {
-			t.Fatal(err)
+	tst2 := mustReadFile[string, string](t, "env")
+	testfunc := func(s string) (string, error) {
+		if s != "" {
+			return s, nil
 		}
-		tst.Run(t, test.testFunc, test.validateFunc)
+		return os.Getenv("XLTEST"), nil
 	}
+	tst2.Run(t, testfunc, nil, nil)
+
+	tst3 := mustReadFile[string, string](t, "validate")
+	tst3.Run(t,
+		func(s string) (string, error) { return "LLM says: " + s, nil },
+		func(got, wantRegexp string) error {
+			matched, err := regexp.MatchString(wantRegexp, got)
+			if err != nil {
+				return err
+			}
+			if !matched {
+				return fmt.Errorf("got %q, wanted match for %q", got, wantRegexp)
+			}
+			return nil
+		},
+		nil)
+
+	tst4 := mustReadFile[string, int](t, "errors")
+	tst4.Run(t, strconv.Atoi, nil, func(got error, _ int) error {
+		var nerr *strconv.NumError
+		if !errors.As(got, &nerr) {
+			return fmt.Errorf("got error of type %T, want strconv.NumError", got)
+		}
+		return nil
+	})
 }
 
+func mustReadFile[I, W any](t *testing.T, name string) *Test[I, W] {
+	tst, err := ReadFile[I, W](filepath.Join(testdataDir, name+".yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tst
+}
+
+func (t *Test[I, W]) name() string { return t.Name }
+
 func TestReadDir(t *testing.T) {
-	got, err := ReadDir(testdataDir)
+	got, err := ReadDir[any, any](testdataDir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// We can't actually run these because they require different test functions.
 
-	checkName := func(tst *Test, wantName string) {
+	checkName := func(gotName, wantName string) {
 		t.Helper()
-		if g, w := tst.Name, wantName; g != w {
+		if g, w := gotName, wantName; g != w {
 			t.Errorf("got %q, want %q", g, w)
 		}
 	}
 
-	checkName(got, "testdata")
+	checkName(got.Name, "testdata")
 	if g, w := len(got.SubTests), 4; g != w {
 		t.Fatalf("got %d subtests, want %d", g, w)
 	}
-	checkName(got.SubTests[0], "add")
-	checkName(got.SubTests[1], "env")
-	checkName(got.SubTests[2], "errors")
-	checkName(got.SubTests[3], "validate")
+	checkName(got.SubTests[0].Name, "add")
+	checkName(got.SubTests[1].Name, "env")
+	checkName(got.SubTests[2].Name, "errors")
+	checkName(got.SubTests[3].Name, "validate")
 }

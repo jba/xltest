@@ -48,7 +48,9 @@ properties:
     enum:
       - fail      # The test fails. This is the default.      
       - succeed   # The test succeeds, and fails if there is not an error.
-      - validate  # The error is passed to the validation function.
+      - validate  # The error is passed to the validation function, or to a
+                  # second error-specific validation function, depending on
+                  # the language.
 
   subtests:
     description: |
